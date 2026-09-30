@@ -1,4 +1,9 @@
-﻿[Ejercicio 04]
+﻿[Ejercicio 05]
+- Incorporacion de ocho archivos CSV con diez registros por entidad.
+- Implementacion del script de precarga de datos iniciales.
+- Precarga de historial de cotizaciones para los tipos Oficial, Blue y MEP.
+
+[Ejercicio 04]
 - Implementacion de la capa de servicios y logica de negocio.
 - Conversion de precios USD a ARS con la cotizacion disponible.
 - Validacion de ventas y actualizacion del stock.
