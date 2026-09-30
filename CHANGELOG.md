@@ -1,4 +1,8 @@
-﻿[Ejercicio 02]
+﻿[Ejercicio 03]
+- Implementacion de interfaces y repositorios para guardar entidades en archivos CSV.
+- Implementacion de operaciones CRUD con manejo de las claves de Stock y CotizacionDolar.
+
+[Ejercicio 02]
 - Definicion de las entidades principales con dataclasses y anotaciones de tipo.
 
 [Ejercicio 01]
