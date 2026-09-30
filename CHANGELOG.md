@@ -1,4 +1,10 @@
-﻿[Ejercicio 05]
+﻿[Ejercicio 06]
+- Implementacion del menu interactivo por consola con operaciones CRUD.
+- Conexion de la interfaz con servicios y repositorios CSV.
+- Incorporacion de reportes de catalogo e historico de cotizaciones.
+- Listados de IDs relacionados y disponibles antes de cada solicitud de dato.
+
+[Ejercicio 05]
 - Incorporacion de ocho archivos CSV con diez registros por entidad.
 - Implementacion del script de precarga de datos iniciales.
 - Precarga de historial de cotizaciones para los tipos Oficial, Blue y MEP.
