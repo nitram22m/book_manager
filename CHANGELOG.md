@@ -1,4 +1,8 @@
-﻿[Ejercicio 06]
+﻿[Ejercicio 07]
+- Implementacion de main.py como punto de entrada del sistema.
+- Integracion de la precarga inicial con el menu de consola.
+
+[Ejercicio 06]
 - Implementacion del menu interactivo por consola con operaciones CRUD.
 - Conexion de la interfaz con servicios y repositorios CSV.
 - Incorporacion de reportes de catalogo e historico de cotizaciones.
