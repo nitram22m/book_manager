@@ -1,4 +1,9 @@
-﻿[Ejercicio 03]
+﻿[Ejercicio 04]
+- Implementacion de la capa de servicios y logica de negocio.
+- Conversion de precios USD a ARS con la cotizacion disponible.
+- Validacion de ventas y actualizacion del stock.
+
+[Ejercicio 03]
 - Implementacion de interfaces y repositorios para guardar entidades en archivos CSV.
 - Implementacion de operaciones CRUD con manejo de las claves de Stock y CotizacionDolar.
 
