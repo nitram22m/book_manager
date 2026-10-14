@@ -1,7 +1,9 @@
 """Interfaz de consola para la gestión del catálogo de la librería."""
 
+import csv
 import os
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from book_manager.entities.entities import (
@@ -16,6 +18,8 @@ from book_manager.entities.entities import (
     TipoCotizacion,
 )
 from book_manager.services.services import ServicioLibreria
+
+EXPORT_DIR = Path(__file__).resolve().parents[3] / "exports"
 
 
 class MenuConsola:
@@ -109,14 +113,17 @@ class MenuConsola:
     def mostrar_menu_principal(self) -> None:
         """Muestra el menú principal y despacha la opción seleccionada."""
         while True:
-            print("\n=== BOOK MANAGER - SPRINT 1 ===")
+            print("\n=== BOOK MANAGER - SPRINT 2 ===")
             print("1. Gestionar entidades (CRUD)")
             print("2. Consultar precio de un libro en ARS")
             print("3. Consultar stock disponible")
             print("4. Registrar venta")
             print("5. Reporte de libros y stock")
             print("6. Consultar historico de cotizaciones")
-            print("7. Salir")
+            print("7. Actualizar cotizaciones desde DolarApi")
+            print("8. Consultar precios en ARS y USD")
+            print("9. Exportar precios bimonetarios a CSV")
+            print("10. Salir")
             opcion = input("Seleccione una opcion: ").strip()
 
             if opcion == "1":
@@ -132,6 +139,12 @@ class MenuConsola:
             elif opcion == "6":
                 self.consultar_historico_cotizaciones()
             elif opcion == "7":
+                self.actualizar_cotizaciones_api()
+            elif opcion == "8":
+                self.mostrar_precios_bimonetarios()
+            elif opcion == "9":
+                self.exportar_precios_bimonetarios()
+            elif opcion == "10":
                 print("Saliendo del sistema.")
                 return
             else:
@@ -192,7 +205,7 @@ class MenuConsola:
         """Solicita los datos de una entidad y la guarda en su repositorio."""
         entidad = self.leer_entidad(nombre)
         self.repositorios[nombre].crear(entidad)
-        print("Registro creado y guardado en CSV.")
+        print("Registro creado y guardado en la base de datos.")
 
     def actualizar_entidad(self, nombre: str) -> None:
         """Solicita una entidad existente y guarda sus nuevos valores."""
@@ -205,7 +218,7 @@ class MenuConsola:
             return
         entidad = self.leer_entidad(nombre, existente)
         self.repositorios[nombre].actualizar(entidad)
-        print("Registro actualizado en CSV.")
+        print("Registro actualizado en la base de datos.")
 
     def eliminar_entidad(self, nombre: str) -> None:
         """Solicita la clave y confirmación antes de eliminar un registro."""
@@ -301,7 +314,9 @@ class MenuConsola:
             )
             return Precio(datos["id"], datos["valor"], moneda)
         if nombre == "Libro":
-            autor = self._entidad_por_id("repo_autores", datos["autor_id"], "Autor")
+            autor = self._entidad_por_id(
+                "repo_autores", datos["autor_id"], "Autor"
+            )
             editorial = self._entidad_por_id(
                 "repo_editoriales", datos["editorial_id"], "Editorial"
             )
@@ -473,7 +488,7 @@ class MenuConsola:
             libro_id = int(input("Ingrese el ID del libro: "))
             cantidad = int(input("Ingrese la cantidad a vender: "))
             self.servicio.vender_libro(libro_id, cantidad)
-            print("Venta registrada y stock actualizado en CSV.")
+            print("Venta registrada y stock actualizado en la base de datos.")
         except ValueError as error:
             print(f"Error en la operacion: {error}")
 
@@ -494,6 +509,142 @@ class MenuConsola:
                 f"{libro.id} | {libro.titulo} | "
                 f"stock={cantidad} | precio={precio}"
             )
+
+    def actualizar_cotizaciones_api(self) -> None:
+        """Obtiene cotizaciones de la API y muestra las guardadas."""
+        try:
+            cotizaciones = (
+                self.servicio.servicio_cotizaciones.obtener_cotizaciones()
+            )
+        except (RuntimeError, ValueError) as error:
+            print(f"No se pudieron actualizar las cotizaciones: {error}")
+            return
+
+        print("Cotizaciones actualizadas en la base de datos:")
+        for cotizacion in cotizaciones:
+            print(
+                f"{cotizacion.tipo.nombre}: "
+                f"${cotizacion.valor:.2f} ARS "
+                f"({cotizacion.fecha.isoformat()})"
+            )
+
+    def mostrar_precios_bimonetarios(self) -> None:
+        """Muestra los precios del catálogo en ARS y su equivalente en USD."""
+        if not self.servicio.repo_libros.leer_todos():
+            print("No hay libros registrados.")
+            return
+
+        tipo_id = self._leer_tipo_cotizacion()
+        if tipo_id is None:
+            return
+
+        try:
+            precios = self.servicio.obtener_precios_bimonetarios(tipo_id)
+        except ValueError as error:
+            print(f"No se pudo calcular la lista de precios: {error}")
+            return
+
+        print("\nPrecios del catálogo en ARS y USD:")
+        print(
+            "ID | ISBN | Título | Precio original | Precio ARS | Precio USD"
+        )
+        for libro, precio_ars, precio_usd in precios:
+            precio_original = libro.precio
+            moneda = precio_original.moneda
+            ars = f"${precio_ars:.2f}" if precio_ars is not None else "N/D"
+            usd = f"U$S {precio_usd:.2f}" if precio_usd is not None else "N/D"
+            print(
+                f"{libro.id} | {libro.isbn} | {libro.titulo} | "
+                f"{moneda.simbolo} {precio_original.valor:.2f} "
+                f"{moneda.nombre} | {ars} | {usd}"
+            )
+
+    def exportar_precios_bimonetarios(
+        self,
+        tipo_dolar_id: int | None = None,
+        ruta_salida: Path | None = None,
+    ) -> Path | None:
+        """Exporta los precios originales y las equivalencias ARS a CSV."""
+        libros = self.servicio.repo_libros.leer_todos()
+        if not libros:
+            print("No hay libros registrados.")
+            return None
+
+        hay_precios_usd = any(
+            libro.precio.moneda.nombre == "USD" for libro in libros
+        )
+        if hay_precios_usd and tipo_dolar_id is None:
+            tipo_dolar_id = self._leer_tipo_cotizacion()
+            if tipo_dolar_id is None:
+                return None
+
+        try:
+            precios = self.servicio.obtener_precios_para_exportacion(
+                tipo_dolar_id
+            )
+            destino = ruta_salida or (
+                EXPORT_DIR / "precios_bimonetarios.csv"
+            )
+            destino.parent.mkdir(parents=True, exist_ok=True)
+            with destino.open(
+                "w",
+                newline="",
+                encoding="utf-8-sig",
+            ) as archivo:
+                escritor = csv.writer(archivo)
+                escritor.writerow(
+                    [
+                        "id",
+                        "isbn",
+                        "titulo",
+                        "precio_original",
+                        "moneda",
+                        "simbolo",
+                        "precio_ars_equivalente",
+                        "cotizacion_usd_ars",
+                    ]
+                )
+                tipo_cotizacion = (
+                    self.servicio.repo_tipo_cot.leer_por_id(tipo_dolar_id)
+                    if tipo_dolar_id is not None
+                    else None
+                )
+                for libro, precio_ars in precios:
+                    precio = libro.precio
+                    escritor.writerow(
+                        [
+                            libro.id,
+                            libro.isbn,
+                            libro.titulo,
+                            f"{precio.valor:.2f}",
+                            precio.moneda.nombre,
+                            precio.moneda.simbolo,
+                            (
+                                f"{precio_ars:.2f}"
+                                if precio_ars is not None
+                                else ""
+                            ),
+                            tipo_cotizacion.nombre
+                            if precio.moneda.nombre == "USD"
+                            and tipo_cotizacion is not None
+                            else "",
+                        ]
+                    )
+        except (OSError, ValueError) as error:
+            print(f"No se pudo exportar la lista de precios: {error}")
+            return None
+
+        print(f"Lista de precios exportada en: {destino}")
+        return destino
+
+    def _leer_tipo_cotizacion(self) -> int | None:
+        """Solicita un tipo de cotización disponible para las conversiones."""
+        self.mostrar_catalogo_tipos_cotizacion()
+        try:
+            return int(input("Ingrese el ID del tipo de cotizacion: "))
+        except ValueError:
+            print("Ingrese un ID numerico valido.")
+            return None
 
     def consultar_historico_cotizaciones(self) -> None:
         """Solicita un tipo de cotización y muestra su historial ordenado."""

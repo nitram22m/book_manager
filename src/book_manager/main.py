@@ -2,21 +2,26 @@
 
 import os
 import sys
+from pathlib import Path
 
 # Permite ejecutar el punto de entrada desde distintos directorios.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def main(import_default_data: bool = True) -> None:
-    """Inicializa los datos opcionales y lanza la interfaz de consola.
+    """Migra los datos CSV a la base de datos y lanza la interfaz.
 
     Args:
-        import_default_data: Indica si se deben precargar los datos de ejemplo.
+        import_default_data: Indica si se deben migrar los CSV iniciales.
     """
     if import_default_data:
-        from book_manager.preload_data.preload_data import inicializar_datos
+        from book_manager.migrations.migrations import migrar_datos
 
-        inicializar_datos()
+        directorio_migraciones = Path(__file__).resolve().parent / "migrations"
+        migrar_datos(
+            str(directorio_migraciones / "csv"),
+            str(directorio_migraciones / "sql"),
+        )
 
     from book_manager.ui.console import iniciar_app
 
