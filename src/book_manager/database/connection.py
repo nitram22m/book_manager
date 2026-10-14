@@ -11,7 +11,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-ROOT_DIR = Path(__file__).resolve().parents[3]
+ROOT_DIR: Path = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT_DIR / ".env")
 
 

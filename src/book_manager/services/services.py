@@ -28,7 +28,7 @@ from book_manager.repositories.repositories import (
     crear_repositorio_tipo_cotizacion,
 )
 
-ROOT_DIR = Path(__file__).resolve().parents[3]
+ROOT_DIR: Path = Path(__file__).resolve().parents[3]
 load_dotenv(ROOT_DIR / ".env")
 
 
@@ -150,7 +150,8 @@ class ServicioLibreria:
         if necesita_cotizacion:
             if tipo_dolar_id is None:
                 raise ValueError(
-                    "Debe seleccionar un tipo de cotización para convertir USD."
+                    "Debe seleccionar un tipo de cotización "
+                    "para convertir USD."
                 )
             if self.repo_tipo_cot.leer_por_id(tipo_dolar_id) is None:
                 raise ValueError("El tipo de cotizacion no existe.")
@@ -205,7 +206,7 @@ class ServicioLibreria:
 class ServicioCotizacionDolar:
     """Obtiene y registra cotizaciones desde DolarApi."""
 
-    _CASAS_A_TIPOS = {
+    _CASAS_A_TIPOS: dict[str, str] = {
         "oficial": "oficial",
         "blue": "blue",
         "bolsa": "mep",
@@ -233,7 +234,7 @@ class ServicioCotizacionDolar:
         self.__solicitar = solicitar
 
     def obtener_cotizaciones(self) -> list[CotizacionDolar]:
-        """Descarga la cotización de venta y la guarda para la fecha actual."""
+        """Descarga el precio de venta y lo guarda para la fecha actual."""
         try:
             respuesta = self.__solicitar(self.__api_url, timeout=15)
             respuesta.raise_for_status()

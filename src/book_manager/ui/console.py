@@ -9,6 +9,7 @@ from typing import Any
 from book_manager.entities.entities import (
     Autor,
     CotizacionDolar,
+    Entidad,
     Editorial,
     Genero,
     Libro,
@@ -19,7 +20,7 @@ from book_manager.entities.entities import (
 )
 from book_manager.services.services import ServicioLibreria
 
-EXPORT_DIR = Path(__file__).resolve().parents[3] / "exports"
+EXPORT_DIR: Path = Path(__file__).resolve().parents[3] / "exports"
 
 
 class MenuConsola:
@@ -247,7 +248,7 @@ class MenuConsola:
         )
         print(mensaje)
 
-    def leer_clave(self, nombre: str) -> tuple[Any, ...]:
+    def leer_clave(self, nombre: str) -> tuple[int | date, ...]:
         """Solicita los valores que identifican un registro."""
         valores = []
         for clave in self.claves[nombre]:
@@ -257,8 +258,8 @@ class MenuConsola:
         return tuple(valores)
 
     def buscar_entidad(
-        self, nombre: str, clave: tuple[Any, ...]
-    ) -> Any | None:
+        self, nombre: str, clave: tuple[int | date, ...]
+    ) -> Entidad | None:
         """Busca un registro mediante la clave correspondiente a su entidad."""
         repositorio = self.repositorios[nombre]
         if nombre == "Stock":
@@ -267,7 +268,9 @@ class MenuConsola:
             return repositorio.leer_por_tipo_y_fecha(clave[0], clave[1])
         return repositorio.leer_por_id(clave[0])
 
-    def leer_entidad(self, nombre: str, existente: Any | None = None) -> Any:
+    def leer_entidad(
+        self, nombre: str, existente: Entidad | None = None
+    ) -> Entidad:
         """Solicita los campos de una entidad nueva o existente."""
         datos = {}
         claves = self.claves[nombre]
@@ -289,7 +292,7 @@ class MenuConsola:
             )
         return self._construir_entidad(nombre, datos)
 
-    def _valor_campo(self, entidad: Any, campo: str) -> Any:
+    def _valor_campo(self, entidad: Entidad, campo: str) -> Any:
         relaciones = {
             "autor_id": "autor",
             "editorial_id": "editorial",
@@ -303,7 +306,9 @@ class MenuConsola:
             return getattr(entidad, relaciones[campo]).id
         return getattr(entidad, campo)
 
-    def _construir_entidad(self, nombre: str, datos: dict[str, Any]) -> Any:
+    def _construir_entidad(
+        self, nombre: str, datos: dict[str, Any]
+    ) -> Entidad:
         if nombre in {"Genero", "Editorial", "Autor", "TipoCotizacion"}:
             return self.modelos[nombre](id=datos["id"], nombre=datos["nombre"])
         if nombre == "Moneda":
@@ -342,7 +347,9 @@ class MenuConsola:
             return CotizacionDolar(tipo, datos["fecha"], datos["valor"])
         raise ValueError(f"Entidad no soportada: {nombre}")
 
-    def _entidad_por_id(self, nombre_repo: str, id: int, nombre: str) -> Any:
+    def _entidad_por_id(
+        self, nombre_repo: str, id: int, nombre: str
+    ) -> Entidad:
         entidad = getattr(self.servicio, nombre_repo).leer_por_id(id)
         if entidad is None:
             raise ValueError(f"{nombre} con ID {id} no existe.")

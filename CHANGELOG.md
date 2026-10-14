@@ -2,6 +2,7 @@
 
 [Ejercicio 08]
 - Se agregaron opciones para consultar cotizaciones con DolarApi, ver precios en ARS y USD según el tipo de dólar elegido y exportar a CSV los precios originales de todas las monedas, con equivalencia en ARS para los libros en USD.
+- Se ajustaron las anotaciones de tipo y se corrigieron detalles de formato para mantener el código conforme a PEP 8.
 
 [Ejercicio 07]
 - Conexión con DolarApi para consultar y guardar en Supabase las cotizaciones actuales del dólar.

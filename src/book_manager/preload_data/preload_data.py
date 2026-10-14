@@ -17,7 +17,7 @@ from book_manager.services.services import ServicioLibreria
 
 
 def inicializar_datos() -> None:
-    """Carga datos de ejemplo en las entidades cuyos archivos estén vacíos."""
+    """Carga datos de ejemplo en entidades con archivos vacíos."""
     servicio = ServicioLibreria()
     repo_generos = servicio.repo_generos
     repo_editoriales = servicio.repo_editoriales
@@ -147,6 +147,7 @@ def inicializar_datos() -> None:
                 )
 
     print("Precarga de datos finalizada.")
+
 
 if __name__ == "__main__":
     inicializar_datos()

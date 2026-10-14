@@ -83,7 +83,7 @@ class SQLRepositorioBase(Generic[T]):
         resultado = self.leer_por_clave(id)
         return resultado
 
-    def leer_por_clave(self, *clave: Any) -> T | None:
+    def leer_por_clave(self, *clave: int | date) -> T | None:
         """Busca una entidad por los valores de su clave primaria."""
         clave_primaria = self._normalizar_clave(clave)
         with get_db_session() as sesion:
@@ -132,7 +132,7 @@ class SQLRepositorioBase(Generic[T]):
             ) from error
         return entidad
 
-    def eliminar(self, *clave: Any) -> bool:
+    def eliminar(self, *clave: int | date) -> bool:
         """Elimina la entidad o rechaza borrar registros relacionados."""
         clave_primaria = self._normalizar_clave(clave)
         try:
@@ -149,12 +149,16 @@ class SQLRepositorioBase(Generic[T]):
             ) from error
         return True
 
-    def _obtener_clave(self, valores: dict[str, Any]) -> Any:
+    def _obtener_clave(
+        self, valores: dict[str, Any]
+    ) -> int | date | tuple[int | date, ...]:
         """Extrae del diccionario de valores la clave del registro."""
         clave = tuple(valores[nombre] for nombre in self._clave_primaria)
         return clave[0] if len(clave) == 1 else clave
 
-    def _normalizar_clave(self, clave: tuple[Any, ...]) -> Any:
+    def _normalizar_clave(
+        self, clave: tuple[int | date, ...]
+    ) -> int | date | tuple[int | date, ...]:
         """Valida y adapta la clave al formato esperado por Session.get."""
         if len(clave) != len(self._clave_primaria):
             raise ValueError(

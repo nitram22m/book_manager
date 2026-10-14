@@ -86,7 +86,7 @@ def _convertir_cotizacion(fila: RegistroCsv) -> DatosModelo:
     }
 
 
-_MIGRACIONES = (
+_MIGRACIONES: tuple[_DefinicionMigracion, ...] = (
     _DefinicionMigracion(
         "autores.csv",
         Autor,
@@ -280,6 +280,7 @@ def migrar_datos(carpeta_csvs: str, carpeta_sqls: str) -> None:
             _insertar_registros(sesion, definicion, registros)
 
     print(
-        f"Migración completada: {sum(len(registros) for _, registros in datos)} "
+        "Migración completada: "
+        f"{sum(len(registros) for _, registros in datos)} "
         f"registros CSV revisados; archivos SQL generados en {ruta_sqls}."
     )

@@ -5,17 +5,17 @@ validan cada asignacion. Las relaciones entre entidades se modelan con
 instancias de las clases correspondientes y no con identificadores.
 """
 import datetime
-from typing import Any, Dict, Tuple
+from typing import Any, ClassVar, Dict, Tuple
 
 
-def _validar_texto(valor: Any, campo: str) -> str:
+def _validar_texto(valor: object, campo: str) -> str:
     """Limpia el texto o lanza ValueError si el valor es inválido."""
     if not isinstance(valor, str) or not valor.strip():
         raise ValueError(f"{campo} debe ser un texto no vacio.")
     return valor.strip()
 
 
-def _validar_entero(valor: Any, campo: str, minimo: int) -> int:
+def _validar_entero(valor: object, campo: str, minimo: int) -> int:
     """Valida que el valor sea un entero no booleano dentro del rango."""
     if isinstance(valor, bool) or not isinstance(valor, int):
         raise ValueError(f"{campo} debe ser un numero entero.")
@@ -24,7 +24,7 @@ def _validar_entero(valor: Any, campo: str, minimo: int) -> int:
     return valor
 
 
-def _validar_monto(valor: Any, campo: str) -> float:
+def _validar_monto(valor: object, campo: str) -> float:
     """Valida que el valor sea un numero estrictamente positivo."""
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
         raise ValueError(f"{campo} debe ser un numero.")
@@ -33,7 +33,9 @@ def _validar_monto(valor: Any, campo: str) -> float:
     return float(valor)
 
 
-def _validar_instancia(valor: Any, clase: type, campo: str) -> Any:
+def _validar_instancia(
+    valor: object, clase: type[object], campo: str
+) -> Any:
     """Valida que el valor sea una instancia de la clase indicada."""
     if not isinstance(valor, clase):
         raise ValueError(
@@ -45,9 +47,9 @@ def _validar_instancia(valor: Any, clase: type, campo: str) -> Any:
 class Entidad:
     """Clase base de toda entidad persistible en CSV."""
 
-    CAMPOS_CSV: Tuple[str, ...] = ()
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ()
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Devuelve la entidad como diccionario listo para escribir en CSV."""
         raise NotImplementedError
 
@@ -63,7 +65,7 @@ class Entidad:
 class EntidadBase(Entidad):
     """Entidad identificada por un id entero positivo."""
 
-    CAMPOS_CSV = ("id",)
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("id",)
 
     def __init__(self, id: int) -> None:
         """Crea una entidad con un identificador entero positivo."""
@@ -78,7 +80,7 @@ class EntidadBase(Entidad):
     def id(self, valor: int) -> None:
         self.__id = _validar_entero(valor, "El id", 1)
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte la entidad en una fila compatible con CSV."""
         return {"id": self.id}
 
@@ -94,7 +96,7 @@ class EntidadBase(Entidad):
 class EntidadNombrada(EntidadBase):
     """Entidad con identificador y nombre."""
 
-    CAMPOS_CSV = ("id", "nombre")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("id", "nombre")
 
     def __init__(self, id: int, nombre: str) -> None:
         """Crea una entidad identificada y con nombre descriptivo."""
@@ -110,7 +112,7 @@ class EntidadNombrada(EntidadBase):
     def nombre(self, valor: str) -> None:
         self.__nombre = _validar_texto(valor, "El nombre")
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte la entidad en una fila compatible con CSV."""
         return {"id": self.id, "nombre": self.nombre}
 
@@ -139,7 +141,7 @@ class TipoCotizacion(EntidadNombrada):
 class Moneda(EntidadBase):
     """Moneda en la que se expresa un precio."""
 
-    CAMPOS_CSV = ("id", "nombre", "simbolo")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("id", "nombre", "simbolo")
 
     def __init__(
         self, id: int, nombre: str, simbolo: str
@@ -167,7 +169,7 @@ class Moneda(EntidadBase):
     def simbolo(self, valor: str) -> None:
         self.__simbolo = _validar_texto(valor, "El simbolo")
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte la moneda en una fila compatible con CSV."""
         return {"id": self.id, "nombre": self.nombre, "simbolo": self.simbolo}
 
@@ -180,7 +182,7 @@ class Moneda(EntidadBase):
 class Precio(EntidadBase):
     """Valor monetario expresado en una Moneda."""
 
-    CAMPOS_CSV = ("id", "valor", "moneda_id")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("id", "valor", "moneda_id")
 
     def __init__(self, id: int, valor: float, moneda: Moneda) -> None:
         """Crea un precio asociado a una moneda."""
@@ -206,7 +208,7 @@ class Precio(EntidadBase):
     def moneda(self, moneda: Moneda) -> None:
         self.__moneda = _validar_instancia(moneda, Moneda, "La moneda")
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte el precio y la referencia a moneda en una fila CSV."""
         return {
             "id": self.id,
@@ -218,7 +220,7 @@ class Precio(EntidadBase):
 class Libro(EntidadBase):
     """Libro del catalogo, asociado a su autor, editorial, genero y precio."""
 
-    CAMPOS_CSV = (
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = (
         "id",
         "isbn",
         "titulo",
@@ -303,7 +305,7 @@ class Libro(EntidadBase):
     def precio(self, precio: Precio) -> None:
         self.__precio = _validar_instancia(precio, Precio, "El precio")
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte el libro y sus referencias en una fila CSV."""
         return {
             "id": self.id,
@@ -319,7 +321,7 @@ class Libro(EntidadBase):
 class Stock(Entidad):
     """Unidades disponibles de un Libro; se identifica por el libro."""
 
-    CAMPOS_CSV = ("libro_id", "cantidad")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("libro_id", "cantidad")
 
     def __init__(
         self, libro: Libro, cantidad: int
@@ -355,7 +357,7 @@ class Stock(Entidad):
             )
         self.cantidad = self.cantidad - unidades
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte el stock y su referencia al libro en una fila CSV."""
         return {"libro_id": self.libro.id, "cantidad": self.cantidad}
 
@@ -363,7 +365,7 @@ class Stock(Entidad):
 class CotizacionDolar(Entidad):
     """Cotizacion del dolar de un tipo determinado en una fecha."""
 
-    CAMPOS_CSV = ("tipo_id", "fecha", "valor")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("tipo_id", "fecha", "valor")
 
     def __init__(
         self, tipo: TipoCotizacion, fecha: datetime.date, valor: float
@@ -404,7 +406,7 @@ class CotizacionDolar(Entidad):
     def valor(self, valor: float) -> None:
         self.__valor = _validar_monto(valor, "El valor de la cotizacion")
 
-    def a_fila(self) -> Dict[str, Any]:
+    def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte la cotizacion y su tipo relacionado en una fila CSV."""
         return {
             "tipo_id": self.tipo.id,
