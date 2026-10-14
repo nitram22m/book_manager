@@ -1,1 +1,5 @@
 ﻿# Proyecto requiere Python 3.10 o superior.
+sqlalchemy
+psycopg[binary]
+python-dotenv
+requests
