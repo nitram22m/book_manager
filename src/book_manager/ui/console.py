@@ -1,9 +1,11 @@
+"""Interfaz de consola para la gestión del catálogo de la librería."""
+
 import os
-from dataclasses import fields
 from datetime import date
 from typing import Any
 
 from book_manager.entities.entities import (
+    Autor,
     CotizacionDolar,
     Editorial,
     Genero,
@@ -20,11 +22,13 @@ class MenuConsola:
     """Gestiona las operaciones del sistema desde la consola."""
 
     def __init__(self) -> None:
+        """Configura los modelos, repositorios y claves de las entidades."""
         self.servicio = ServicioLibreria()
         self.modelos: dict[str, type[Any]] = {
             "Libro": Libro,
             "Genero": Genero,
             "Editorial": Editorial,
+            "Autor": Autor,
             "Moneda": Moneda,
             "TipoCotizacion": TipoCotizacion,
             "Precio": Precio,
@@ -35,6 +39,7 @@ class MenuConsola:
             "Libro": self.servicio.repo_libros,
             "Genero": self.servicio.repo_generos,
             "Editorial": self.servicio.repo_editoriales,
+            "Autor": self.servicio.repo_autores,
             "Moneda": self.servicio.repo_monedas,
             "TipoCotizacion": self.servicio.repo_tipo_cot,
             "Precio": self.servicio.repo_precios,
@@ -45,27 +50,64 @@ class MenuConsola:
             "Libro": ("id",),
             "Genero": ("id",),
             "Editorial": ("id",),
+            "Autor": ("id",),
             "Moneda": ("id",),
             "TipoCotizacion": ("id",),
             "Precio": ("id",),
             "Stock": ("libro_id",),
             "CotizacionDolar": ("tipo_id", "fecha"),
         }
-        # Relaciona cada campo de tipo ID con el repositorio que permite mostrar sus opciones.
+        # Asocia cada referencia con el repositorio de sus opciones.
         self.claves_relacionadas: dict[str, tuple[str, Any]] = {
+            "autor_id": ("repo_autores", lambda r: f"  {r.id}: {r.nombre}"),
             "genero_id": ("repo_generos", lambda r: f"  {r.id}: {r.nombre}"),
-            "editorial_id": ("repo_editoriales", lambda r: f"  {r.id}: {r.nombre}"),
-            "moneda_id": ("repo_monedas", lambda r: f"  {r.id}: {r.nombre} ({r.simbolo})"),
-            "precio_id": ("repo_precios", lambda r: f"  {r.id}: {r.valor} (moneda_id={r.moneda_id})"),
+            "editorial_id": (
+                "repo_editoriales",
+                lambda r: f"  {r.id}: {r.nombre}",
+            ),
+            "moneda_id": (
+                "repo_monedas",
+                lambda r: f"  {r.id}: {r.nombre} ({r.simbolo})",
+            ),
+            "precio_id": (
+                "repo_precios",
+                lambda r: f"  {r.id}: {r.valor} {r.moneda.nombre}",
+            ),
             "tipo_id": ("repo_tipo_cot", lambda r: f"  {r.id}: {r.nombre}"),
-            "stock_id": ("repo_stock", lambda r: f"  libro_id={r.libro_id}: cantidad={r.cantidad}"),
+            "stock_id": (
+                "repo_stock",
+                lambda r: f"  libro_id={r.libro.id}: cantidad={r.cantidad}",
+            ),
             "libro_id": ("repo_libros", lambda r: f"  {r.id}: {r.titulo}"),
+        }
+        self.campos_entidad: dict[str, tuple[tuple[str, type], ...]] = {
+            "Libro": (
+                ("id", int), ("isbn", str), ("titulo", str),
+                ("autor_id", int), ("editorial_id", int),
+                ("genero_id", int), ("precio_id", int),
+            ),
+            "Genero": (("id", int), ("nombre", str)),
+            "Editorial": (("id", int), ("nombre", str)),
+            "Autor": (("id", int), ("nombre", str)),
+            "Moneda": (
+                ("id", int), ("nombre", str), ("simbolo", str),
+            ),
+            "TipoCotizacion": (("id", int), ("nombre", str)),
+            "Precio": (
+                ("id", int), ("valor", float), ("moneda_id", int),
+            ),
+            "Stock": (("libro_id", int), ("cantidad", int)),
+            "CotizacionDolar": (
+                ("tipo_id", int), ("fecha", date), ("valor", float),
+            ),
         }
 
     def limpiar_pantalla(self) -> None:
+        """Limpia la terminal según el sistema operativo."""
         os.system("cls" if os.name == "nt" else "clear")
 
     def mostrar_menu_principal(self) -> None:
+        """Muestra el menú principal y despacha la opción seleccionada."""
         while True:
             print("\n=== BOOK MANAGER - SPRINT 1 ===")
             print("1. Gestionar entidades (CRUD)")
@@ -96,6 +138,7 @@ class MenuConsola:
                 print("Opcion invalida.")
 
     def menu_entidades(self) -> None:
+        """Permite seleccionar una entidad para administrar."""
         nombres = list(self.modelos)
         while True:
             print("\n--- ENTIDADES ---")
@@ -111,6 +154,7 @@ class MenuConsola:
             self.menu_crud(nombres[int(opcion) - 1])
 
     def menu_crud(self, nombre: str) -> None:
+        """Muestra las operaciones CRUD disponibles para una entidad."""
         while True:
             print(f"\n--- {nombre} ---")
             print("1. Listar")
@@ -136,23 +180,22 @@ class MenuConsola:
                 print(f"No se pudo completar la operacion: {error}")
 
     def listar_entidades(self, nombre: str) -> None:
+        """Lista los registros almacenados de la entidad indicada."""
         registros = self.repositorios[nombre].leer_todos()
         if not registros:
             print("No hay registros.")
             return
         for registro in registros:
-            valores = " | ".join(
-                f"{campo.name}={getattr(registro, campo.name)}"
-                for campo in fields(registro)
-            )
-            print(valores)
+            print(registro)
 
     def crear_entidad(self, nombre: str) -> None:
+        """Solicita los datos de una entidad y la guarda en su repositorio."""
         entidad = self.leer_entidad(nombre)
         self.repositorios[nombre].crear(entidad)
         print("Registro creado y guardado en CSV.")
 
     def actualizar_entidad(self, nombre: str) -> None:
+        """Solicita una entidad existente y guarda sus nuevos valores."""
         print(f"\nRegistros existentes de {nombre}:")
         self.listar_entidades(nombre)
         clave = self.leer_clave(nombre)
@@ -165,6 +208,7 @@ class MenuConsola:
         print("Registro actualizado en CSV.")
 
     def eliminar_entidad(self, nombre: str) -> None:
+        """Solicita la clave y confirmación antes de eliminar un registro."""
         print(f"\nRegistros existentes de {nombre}:")
         self.listar_entidades(nombre)
         clave = self.leer_clave(nombre)
@@ -172,7 +216,9 @@ class MenuConsola:
         if existente is None:
             print("No se encontro el registro.")
             return
-        confirmacion = input("Confirma la eliminacion? (s/n): ").strip().lower()
+        confirmacion = input(
+            "Confirma la eliminacion? (s/n): "
+        ).strip().lower()
         if confirmacion != "s":
             print("Eliminacion cancelada.")
             return
@@ -181,18 +227,26 @@ class MenuConsola:
             eliminado = repositorio.eliminar(clave[0], clave[1])
         else:
             eliminado = repositorio.eliminar(clave[0])
-        print("Registro eliminado." if eliminado else "No se encontro el registro.")
+        mensaje = (
+            "Registro eliminado."
+            if eliminado
+            else "No se encontro el registro."
+        )
+        print(mensaje)
 
     def leer_clave(self, nombre: str) -> tuple[Any, ...]:
-        campos = {campo.name: campo for campo in fields(self.modelos[nombre])}
+        """Solicita los valores que identifican un registro."""
         valores = []
         for clave in self.claves[nombre]:
-            campo = campos[clave]
-            valor = self.leer_valor(f"Ingrese {clave}", campo.type)
+            tipo = date if clave == "fecha" else int
+            valor = self.leer_valor(f"Ingrese {clave}", tipo)
             valores.append(valor)
         return tuple(valores)
 
-    def buscar_entidad(self, nombre: str, clave: tuple[Any, ...]) -> Any | None:
+    def buscar_entidad(
+        self, nombre: str, clave: tuple[Any, ...]
+    ) -> Any | None:
+        """Busca un registro mediante la clave correspondiente a su entidad."""
         repositorio = self.repositorios[nombre]
         if nombre == "Stock":
             return repositorio.leer_por_libro(clave[0])
@@ -201,26 +255,86 @@ class MenuConsola:
         return repositorio.leer_por_id(clave[0])
 
     def leer_entidad(self, nombre: str, existente: Any | None = None) -> Any:
+        """Solicita los campos de una entidad nueva o existente."""
         datos = {}
         claves = self.claves[nombre]
-        for campo in fields(self.modelos[nombre]):
-            valor_actual = getattr(existente, campo.name) if existente else None
-            if existente and campo.name in claves:
-                datos[campo.name] = valor_actual
+        for campo, tipo in self.campos_entidad[nombre]:
+            valor_actual = (
+                self._valor_campo(existente, campo) if existente else None
+            )
+            if existente and campo in claves:
+                datos[campo] = valor_actual
                 continue
-            if existente is None and campo.name in claves:
+            if existente is None and campo in claves:
                 self.mostrar_claves_existentes(nombre)
-            self.mostrar_opciones_relacionadas(campo.name)
-            prompt = f"{campo.name}"
+            self.mostrar_opciones_relacionadas(campo)
+            prompt = campo
             if existente:
                 prompt += f" [{valor_actual}]"
-            datos[campo.name] = self.leer_valor(
-                f"Ingrese {prompt}", campo.type, valor_actual
+            datos[campo] = self.leer_valor(
+                f"Ingrese {prompt}", tipo, valor_actual
             )
-        return self.modelos[nombre](**datos)
+        return self._construir_entidad(nombre, datos)
+
+    def _valor_campo(self, entidad: Any, campo: str) -> Any:
+        relaciones = {
+            "autor_id": "autor",
+            "editorial_id": "editorial",
+            "genero_id": "genero",
+            "precio_id": "precio",
+            "moneda_id": "moneda",
+            "libro_id": "libro",
+            "tipo_id": "tipo",
+        }
+        if campo in relaciones:
+            return getattr(entidad, relaciones[campo]).id
+        return getattr(entidad, campo)
+
+    def _construir_entidad(self, nombre: str, datos: dict[str, Any]) -> Any:
+        if nombre in {"Genero", "Editorial", "Autor", "TipoCotizacion"}:
+            return self.modelos[nombre](id=datos["id"], nombre=datos["nombre"])
+        if nombre == "Moneda":
+            return Moneda(datos["id"], datos["nombre"], datos["simbolo"])
+        if nombre == "Precio":
+            moneda = self._entidad_por_id(
+                "repo_monedas", datos["moneda_id"], "Moneda"
+            )
+            return Precio(datos["id"], datos["valor"], moneda)
+        if nombre == "Libro":
+            autor = self._entidad_por_id("repo_autores", datos["autor_id"], "Autor")
+            editorial = self._entidad_por_id(
+                "repo_editoriales", datos["editorial_id"], "Editorial"
+            )
+            genero = self._entidad_por_id(
+                "repo_generos", datos["genero_id"], "Genero"
+            )
+            precio = self._entidad_por_id(
+                "repo_precios", datos["precio_id"], "Precio"
+            )
+            return Libro(
+                datos["id"], datos["isbn"], datos["titulo"],
+                autor, editorial, genero, precio,
+            )
+        if nombre == "Stock":
+            libro = self._entidad_por_id(
+                "repo_libros", datos["libro_id"], "Libro"
+            )
+            return Stock(libro, datos["cantidad"])
+        if nombre == "CotizacionDolar":
+            tipo = self._entidad_por_id(
+                "repo_tipo_cot", datos["tipo_id"], "TipoCotizacion"
+            )
+            return CotizacionDolar(tipo, datos["fecha"], datos["valor"])
+        raise ValueError(f"Entidad no soportada: {nombre}")
+
+    def _entidad_por_id(self, nombre_repo: str, id: int, nombre: str) -> Any:
+        entidad = getattr(self.servicio, nombre_repo).leer_por_id(id)
+        if entidad is None:
+            raise ValueError(f"{nombre} con ID {id} no existe.")
+        return entidad
 
     def mostrar_opciones_relacionadas(self, nombre_campo: str) -> None:
-        """Imprime los registros disponibles para un campo que referencia otra entidad."""
+        """Muestra las opciones disponibles para un campo relacionado."""
         info = self.claves_relacionadas.get(nombre_campo)
         if info is None:
             return
@@ -234,19 +348,24 @@ class MenuConsola:
             print(formato(registro))
 
     def mostrar_claves_existentes(self, nombre: str) -> None:
-        """Muestra los identificadores ya utilizados para evitar elegir uno repetido."""
+        """Muestra las claves en uso para evitar identificadores duplicados."""
         registros = self.repositorios[nombre].leer_todos()
         if not registros:
-            print(f"  (No hay {nombre} cargados todavia; puede usar cualquier ID)")
+            print(
+                f"  (No hay {nombre} cargados todavia; "
+                "puede usar cualquier ID)"
+            )
             return
         claves = self.claves[nombre]
         print(f"IDs ya utilizados en {nombre} (elija uno distinto):")
         for registro in registros:
-            valores_clave = ", ".join(f"{c}={getattr(registro, c)}" for c in claves)
+            valores_clave = ", ".join(
+                f"{c}={self._valor_campo(registro, c)}" for c in claves
+            )
             print(f"  {valores_clave}")
 
     def mostrar_catalogo_libros(self) -> None:
-        """Muestra los libros existentes para saber que ID corresponde a cada titulo."""
+        """Muestra los libros disponibles y sus identificadores."""
         libros = self.servicio.repo_libros.leer_todos()
         if not libros:
             print("  (No hay libros cargados)")
@@ -256,20 +375,27 @@ class MenuConsola:
             print(f"  {libro.id}: {libro.titulo}")
 
     def mostrar_catalogo_tipos_cotizacion(self) -> None:
-        """Muestra todos los tipos de cotizacion e indica cuales tienen historial cargado."""
+        """Muestra los tipos de cotizacion y su estado de historial."""
         tipos = self.servicio.repo_tipo_cot.leer_todos()
         if not tipos:
             print("  (No hay tipos de cotizacion cargados)")
             return
-        tipos_con_datos = {c.tipo_id for c in self.servicio.repo_cotizaciones.leer_todos()}
+        tipos_con_datos = {
+            c.tipo.id for c in self.servicio.repo_cotizaciones.leer_todos()
+        }
         print("Tipos de cotizacion disponibles:")
         for tipo in tipos:
-            estado = "con historial" if tipo.id in tipos_con_datos else "sin historial"
+            estado = (
+                "con historial"
+                if tipo.id in tipos_con_datos
+                else "sin historial"
+            )
             print(f"  {tipo.id}: {tipo.nombre} ({estado})")
 
     def leer_valor(
         self, prompt: str, tipo: type[Any], valor_actual: Any | None = None
     ) -> Any:
+        """Convierte la entrada y repite la solicitud si no es válida."""
         while True:
             entrada = input(f"{prompt}: ").strip()
             if not entrada and valor_actual is not None:
@@ -288,6 +414,7 @@ class MenuConsola:
                 print("Valor invalido. Vuelva a intentarlo.")
 
     def consultar_precio(self) -> None:
+        """Solicita un libro y muestra su precio convertido a ARS."""
         self.mostrar_catalogo_libros()
         try:
             libro_id = int(input("Ingrese el ID del libro: "))
@@ -298,14 +425,18 @@ class MenuConsola:
         if libro is None:
             print("Error: El libro no existe.")
             return
-        precio = self.servicio.repo_precios.leer_por_id(libro.precio_id)
-        moneda = self.servicio.repo_monedas.leer_por_id(precio.moneda_id) if precio else None
-        if moneda is not None and moneda.nombre == "ARS":
-            print(f"El libro ya esta en ARS, no requiere conversion: ${precio.valor:.2f}")
+        precio = libro.precio
+        if precio.moneda.nombre == "ARS":
+            print(
+                "El libro ya esta en ARS, no requiere conversion: "
+                f"${precio.valor:.2f}"
+            )
             return
         self.mostrar_tipos_cotizacion_disponibles()
         try:
-            tipo_id = int(input("Tipo de cotizacion (ID, por defecto Blue=2): ") or "2")
+            tipo_id = int(
+                input("Tipo de cotizacion (ID, por defecto Blue=2): ") or "2"
+            )
             precio_ars = self.servicio.calcular_precio_ars(libro_id, tipo_id)
             print(f"Precio estimado en ARS: ${precio_ars:.2f}")
         except ValueError as error:
@@ -314,24 +445,29 @@ class MenuConsola:
     def mostrar_tipos_cotizacion_disponibles(self) -> None:
         """Muestra los tipos de cotizacion que tienen historial cargado."""
         cotizaciones = self.servicio.repo_cotizaciones.leer_todos()
-        tipos_con_datos = sorted({c.tipo_id for c in cotizaciones})
+        tipos_con_datos = sorted({c.tipo.id for c in cotizaciones})
         if not tipos_con_datos:
             print("  (No hay cotizaciones cargadas)")
             return
-        nombres = {t.id: t.nombre for t in self.servicio.repo_tipo_cot.leer_todos()}
+        nombres = {
+            t.id: t.nombre for t in self.servicio.repo_tipo_cot.leer_todos()
+        }
         print("Tipos de cotizacion con historial disponible:")
         for tipo_id in tipos_con_datos:
             print(f"  {tipo_id}: {nombres.get(tipo_id, 'Desconocido')}")
 
     def consultar_stock(self) -> None:
+        """Solicita un libro y muestra sus unidades disponibles."""
         self.mostrar_catalogo_libros()
         try:
             libro_id = int(input("Ingrese el ID del libro: "))
-            print(f"Stock disponible: {self.servicio.consultar_stock(libro_id)}")
+            cantidad = self.servicio.consultar_stock(libro_id)
+            print(f"Stock disponible: {cantidad}")
         except ValueError:
             print("Ingrese un ID numerico valido.")
 
     def vender_libro(self) -> None:
+        """Solicita un libro y una cantidad para registrar la venta."""
         self.mostrar_catalogo_libros()
         try:
             libro_id = int(input("Ingrese el ID del libro: "))
@@ -342,6 +478,7 @@ class MenuConsola:
             print(f"Error en la operacion: {error}")
 
     def mostrar_reporte_catalogo(self) -> None:
+        """Muestra el catálogo con stock y precio calculado por libro."""
         libros = self.servicio.repo_libros.leer_todos()
         if not libros:
             print("No hay libros registrados.")
@@ -349,19 +486,26 @@ class MenuConsola:
         for libro in libros:
             cantidad = self.servicio.consultar_stock(libro.id)
             try:
-                precio = f"${self.servicio.calcular_precio_ars(libro.id, 2):.2f} ARS"
+                monto = self.servicio.calcular_precio_ars(libro.id, 2)
+                precio = f"${monto:.2f} ARS"
             except ValueError:
                 precio = "No disponible"
-            print(f"{libro.id} | {libro.titulo} | stock={cantidad} | precio={precio}")
+            print(
+                f"{libro.id} | {libro.titulo} | "
+                f"stock={cantidad} | precio={precio}"
+            )
 
     def consultar_historico_cotizaciones(self) -> None:
+        """Solicita un tipo de cotización y muestra su historial ordenado."""
         self.mostrar_catalogo_tipos_cotizacion()
         try:
             tipo_id = int(input("Ingrese el ID del tipo de cotizacion: "))
         except ValueError:
             print("Ingrese un ID numerico valido.")
             return
-        historico = self.servicio.repo_cotizaciones.leer_historico_por_tipo(tipo_id)
+        historico = self.servicio.repo_cotizaciones.leer_historico_por_tipo(
+            tipo_id
+        )
         if not historico:
             print("No hay cotizaciones para ese tipo.")
             return
@@ -370,5 +514,6 @@ class MenuConsola:
 
 
 def iniciar_app() -> None:
+    """Crea el menú de consola e inicia el ciclo de interacción."""
     menu = MenuConsola()
     menu.mostrar_menu_principal()

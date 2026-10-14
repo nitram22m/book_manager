@@ -1,4 +1,9 @@
-﻿[Ejercicio 07]
+﻿[Ejercicio 08]
+- Aplicacion de correcciones del profesor sobre entidades y POO.
+- Encapsulamiento de atributos, relaciones entre objetos y validaciones.
+- Actualizacion de repositorios, servicios, consola y datos CSV para el nuevo modelo.
+
+[Ejercicio 07]
 - Implementacion de main.py como punto de entrada del sistema.
 - Integracion de la precarga inicial con el menu de consola.
 
