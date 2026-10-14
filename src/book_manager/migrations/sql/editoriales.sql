@@ -1,0 +1,10 @@
+INSERT INTO editoriales (id, nombre) VALUES (1, 'Planeta') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (2, 'Sudamericana') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (3, 'Salamandra') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (4, 'Minotauro') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (5, 'Siglo XXI') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (6, 'Alfaguara') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (7, 'Anagrama') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (8, 'Tusquets') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (9, 'Norma') ON CONFLICT (id) DO NOTHING;
+INSERT INTO editoriales (id, nombre) VALUES (10, 'OReilly') ON CONFLICT (id) DO NOTHING;

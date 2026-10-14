@@ -1,0 +1,10 @@
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (1, '978-1', '1984', 1, 1, 3, 1) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (2, '978-2', 'El Aleph', 2, 2, 1, 2) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (3, '978-3', 'Harry Potter y la Piedra Filosofal', 3, 3, 4, 3) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (4, '978-4', 'Fahrenheit 451', 4, 4, 3, 4) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (5, '978-5', 'Clean Code', 5, 10, 9, 5) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (6, '978-6', 'Dracula', 6, 8, 5, 6) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (7, '978-7', 'Steve Jobs', 7, 1, 7, 7) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (8, '978-8', 'El Hobbit', 8, 4, 4, 8) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (9, '978-9', 'Cien anos de soledad', 9, 2, 1, 9) ON CONFLICT (id) DO NOTHING;
+INSERT INTO libros (id, isbn, titulo, autor_id, editorial_id, genero_id, precio_id) VALUES (10, '978-10', 'Dune', 10, 5, 3, 10) ON CONFLICT (id) DO NOTHING;

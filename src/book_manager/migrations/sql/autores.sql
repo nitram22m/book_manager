@@ -1,0 +1,10 @@
+INSERT INTO autores (id, nombre) VALUES (1, 'George Orwell') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (2, 'Jorge Luis Borges') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (3, 'J. K. Rowling') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (4, 'Ray Bradbury') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (5, 'Robert C. Martin') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (6, 'Bram Stoker') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (7, 'Walter Isaacson') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (8, 'J. R. R. Tolkien') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (9, 'Gabriel Garcia Marquez') ON CONFLICT (id) DO NOTHING;
+INSERT INTO autores (id, nombre) VALUES (10, 'Frank Herbert') ON CONFLICT (id) DO NOTHING;

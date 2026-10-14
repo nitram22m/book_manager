@@ -1,0 +1,10 @@
+INSERT INTO monedas (id, nombre, simbolo) VALUES (1, 'ARS', '$') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (2, 'USD', 'U$S') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (3, 'EUR', '€') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (4, 'GBP', '£') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (5, 'BRL', 'R$') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (6, 'CLP', '$') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (7, 'UYU', '$U') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (8, 'MXN', '$') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (9, 'PEN', 'S/') ON CONFLICT (id) DO NOTHING;
+INSERT INTO monedas (id, nombre, simbolo) VALUES (10, 'COP', '$') ON CONFLICT (id) DO NOTHING;

@@ -1,0 +1,10 @@
+INSERT INTO generos (id, nombre) VALUES (1, 'Novela') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (2, 'Ensayo') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (3, 'Ciencia Ficcion') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (4, 'Fantasia') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (5, 'Terror') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (6, 'Misterio') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (7, 'Biografia') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (8, 'Historia') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (9, 'Tecnologia') ON CONFLICT (id) DO NOTHING;
+INSERT INTO generos (id, nombre) VALUES (10, 'Infantil') ON CONFLICT (id) DO NOTHING;
