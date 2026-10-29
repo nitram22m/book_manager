@@ -78,6 +78,7 @@ class EntidadBase(Entidad):
 
     @id.setter
     def id(self, valor: int) -> None:
+        """Asigna un identificador entero positivo."""
         self.__id = _validar_entero(valor, "El id", 1)
 
     def a_fila(self) -> Dict[str, int | float | str]:
@@ -110,6 +111,7 @@ class EntidadNombrada(EntidadBase):
 
     @nombre.setter
     def nombre(self, valor: str) -> None:
+        """Asigna un nombre no vacío."""
         self.__nombre = _validar_texto(valor, "El nombre")
 
     def a_fila(self) -> Dict[str, int | float | str]:
@@ -158,6 +160,7 @@ class Moneda(EntidadBase):
 
     @nombre.setter
     def nombre(self, valor: str) -> None:
+        """Asigna el código de moneda."""
         self.__nombre = _validar_texto(valor, "El nombre de la moneda")
 
     @property
@@ -167,6 +170,7 @@ class Moneda(EntidadBase):
 
     @simbolo.setter
     def simbolo(self, valor: str) -> None:
+        """Asigna el símbolo visible de la moneda."""
         self.__simbolo = _validar_texto(valor, "El simbolo")
 
     def a_fila(self) -> Dict[str, int | float | str]:
@@ -197,6 +201,7 @@ class Precio(EntidadBase):
 
     @valor.setter
     def valor(self, valor: float) -> None:
+        """Asigna un importe positivo y finito."""
         self.__valor = _validar_monto(valor, "El valor")
 
     @property
@@ -206,6 +211,7 @@ class Precio(EntidadBase):
 
     @moneda.setter
     def moneda(self, moneda: Moneda) -> None:
+        """Asigna la moneda asociada al precio."""
         self.__moneda = _validar_instancia(moneda, Moneda, "La moneda")
 
     def a_fila(self) -> Dict[str, int | float | str]:
@@ -256,6 +262,7 @@ class Libro(EntidadBase):
 
     @isbn.setter
     def isbn(self, valor: str) -> None:
+        """Asigna el ISBN no vacío del libro."""
         self.__isbn = _validar_texto(valor, "El ISBN")
 
     @property
@@ -265,6 +272,7 @@ class Libro(EntidadBase):
 
     @titulo.setter
     def titulo(self, valor: str) -> None:
+        """Asigna el título no vacío del libro."""
         self.__titulo = _validar_texto(valor, "El titulo")
 
     @property
@@ -274,6 +282,7 @@ class Libro(EntidadBase):
 
     @autor.setter
     def autor(self, autor: Autor) -> None:
+        """Asigna una instancia válida de autor."""
         self.__autor = _validar_instancia(autor, Autor, "El autor")
 
     @property
@@ -283,6 +292,7 @@ class Libro(EntidadBase):
 
     @editorial.setter
     def editorial(self, editorial: Editorial) -> None:
+        """Asigna una instancia válida de editorial."""
         self.__editorial = _validar_instancia(
             editorial, Editorial, "La editorial"
         )
@@ -294,6 +304,7 @@ class Libro(EntidadBase):
 
     @genero.setter
     def genero(self, genero: Genero) -> None:
+        """Asigna una instancia válida de género."""
         self.__genero = _validar_instancia(genero, Genero, "El genero")
 
     @property
@@ -303,6 +314,7 @@ class Libro(EntidadBase):
 
     @precio.setter
     def precio(self, precio: Precio) -> None:
+        """Asigna una instancia válida de precio."""
         self.__precio = _validar_instancia(precio, Precio, "El precio")
 
     def a_fila(self) -> Dict[str, int | float | str]:
@@ -337,6 +349,7 @@ class Stock(Entidad):
 
     @libro.setter
     def libro(self, libro: Libro) -> None:
+        """Asigna el libro asociado a las existencias."""
         self.__libro = _validar_instancia(libro, Libro, "El libro")
 
     @property
@@ -346,6 +359,7 @@ class Stock(Entidad):
 
     @cantidad.setter
     def cantidad(self, valor: int) -> None:
+        """Asigna una cantidad de stock no negativa."""
         self.__cantidad = _validar_entero(valor, "La cantidad", 0)
 
     def descontar(self, unidades: int) -> None:
@@ -365,15 +379,25 @@ class Stock(Entidad):
 class CotizacionDolar(Entidad):
     """Cotizacion del dolar de un tipo determinado en una fecha."""
 
-    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = ("tipo_id", "fecha", "valor")
+    CAMPOS_CSV: ClassVar[Tuple[str, ...]] = (
+        "tipo_id",
+        "fecha",
+        "valor",
+        "compra",
+    )
 
     def __init__(
-        self, tipo: TipoCotizacion, fecha: datetime.date, valor: float
+        self,
+        tipo: TipoCotizacion,
+        fecha: datetime.date,
+        valor: float,
+        compra: float | None = None,
     ) -> None:
         """Crea una cotización para un tipo y una fecha."""
         self.tipo = tipo
         self.fecha = fecha
         self.valor = valor
+        self.compra = compra
 
     @property
     def tipo(self) -> TipoCotizacion:
@@ -382,6 +406,7 @@ class CotizacionDolar(Entidad):
 
     @tipo.setter
     def tipo(self, tipo: TipoCotizacion) -> None:
+        """Asigna el tipo de cotización."""
         self.__tipo = _validar_instancia(
             tipo, TipoCotizacion, "El tipo de cotización"
         )
@@ -393,6 +418,7 @@ class CotizacionDolar(Entidad):
 
     @fecha.setter
     def fecha(self, valor: datetime.date) -> None:
+        """Asigna una fecha y convierte los valores datetime a date."""
         if isinstance(valor, datetime.datetime):
             valor = valor.date()
         self.__fecha = _validar_instancia(valor, datetime.date, "La fecha")
@@ -404,7 +430,22 @@ class CotizacionDolar(Entidad):
 
     @valor.setter
     def valor(self, valor: float) -> None:
+        """Asigna el valor de venta positivo y finito."""
         self.__valor = _validar_monto(valor, "El valor de la cotizacion")
+
+    @property
+    def compra(self) -> float | None:
+        """Valor de compra del dólar, si la API lo informa."""
+        return self.__compra
+
+    @compra.setter
+    def compra(self, valor: float | None) -> None:
+        """Asigna el valor de compra o None si no está disponible."""
+        self.__compra = (
+            _validar_monto(valor, "El valor de compra")
+            if valor is not None
+            else None
+        )
 
     def a_fila(self) -> Dict[str, int | float | str]:
         """Convierte la cotizacion y su tipo relacionado en una fila CSV."""
@@ -412,4 +453,5 @@ class CotizacionDolar(Entidad):
             "tipo_id": self.tipo.id,
             "fecha": self.fecha.strftime("%Y-%m-%d"),
             "valor": self.valor,
+            "compra": self.compra if self.compra is not None else "",
         }

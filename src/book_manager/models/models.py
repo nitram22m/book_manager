@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -135,6 +143,52 @@ class CotizacionDolar(Base):
     )
     fecha: Mapped[date] = mapped_column(Date, primary_key=True)
     valor: Mapped[float] = mapped_column(Float, nullable=False)
+    compra: Mapped[float | None] = mapped_column(Float, nullable=True)
     tipo: Mapped[TipoCotizacion] = relationship(
         back_populates="cotizaciones"
+    )
+
+
+class Auditoria(Base):
+    """Registro de acciones ejecutadas dentro de la aplicación."""
+
+    __tablename__ = "auditoria"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    accion: Mapped[str] = mapped_column(String(150), nullable=False)
+    fecha: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    detalles: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class LibroScrapeado(Base):
+    """Última observación de un libro publicado por una tienda externa."""
+
+    __tablename__ = "libros_scrapeados"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    url: Mapped[str] = mapped_column(String(2048), unique=True, nullable=False)
+    titulo: Mapped[str] = mapped_column(String(500), nullable=False)
+    precio: Mapped[float] = mapped_column(Float, nullable=False)
+    moneda: Mapped[str] = mapped_column(String(10), nullable=False)
+    disponibilidad_stock: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+    descripcion: Mapped[str] = mapped_column(String, nullable=False)
+    url_imagen: Mapped[str] = mapped_column(
+        String(2048),
+        nullable=False,
+        default="",
+    )
+    formas_pago: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="[]",
+    )
+    fecha_actualizacion: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
     )

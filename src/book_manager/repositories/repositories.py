@@ -1,16 +1,18 @@
 """Repositorios CRUD para las entidades persistidas en PostgreSQL."""
 
+import abc
 from datetime import date
 from typing import Any, Callable, Generic, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import Table, select
 from sqlalchemy.exc import IntegrityError
 
-from book_manager.database.connection import get_db_session
+from book_manager.database.connection import get_db_session, get_engine
 from book_manager.entities.entities import (
     Autor as EntidadAutor,
     CotizacionDolar as EntidadCotizacion,
     Editorial as EntidadEditorial,
+    EntidadBase,
     Genero as EntidadGenero,
     Libro as EntidadLibro,
     Moneda as EntidadMoneda,
@@ -18,8 +20,10 @@ from book_manager.entities.entities import (
     Stock as EntidadStock,
     TipoCotizacion as EntidadTipoCotizacion,
 )
+from book_manager.services.auditoria import auditar_operacion
 from book_manager.models.models import (
     Autor,
+    Auditoria,
     Base,
     CotizacionDolar,
     Editorial,
@@ -32,8 +36,85 @@ from book_manager.models.models import (
 )
 
 T = TypeVar("T")
+TEntidad = TypeVar("TEntidad", bound=EntidadBase)
 ConvertirEntidad = Callable[[Any], T]
 ConvertirValores = Callable[[T], dict[str, Any]]
+
+
+class IRepositorio(abc.ABC, Generic[TEntidad]):
+    """Contrato CRUD para entidades identificadas por un id entero."""
+
+    @abc.abstractmethod
+    def crear(self, entidad: TEntidad) -> TEntidad:
+        """Persiste una entidad nueva."""
+
+    @abc.abstractmethod
+    def leer_por_id(self, id: int) -> TEntidad | None:
+        """Devuelve la entidad con ese id o None."""
+
+    @abc.abstractmethod
+    def leer_todos(self) -> list[TEntidad]:
+        """Devuelve todas las entidades."""
+
+    @abc.abstractmethod
+    def actualizar(self, entidad: TEntidad) -> TEntidad:
+        """Reemplaza la entidad existente con el mismo id."""
+
+    @abc.abstractmethod
+    def eliminar(self, id: int) -> bool:
+        """Elimina la entidad; devuelve False si no existía."""
+
+
+class IRepositorioStock(abc.ABC):
+    """Contrato CRUD para Stock, identificado por libro_id."""
+
+    @abc.abstractmethod
+    def crear(self, stock: EntidadStock) -> EntidadStock:
+        """Persiste un stock nuevo."""
+
+    @abc.abstractmethod
+    def leer_por_libro(self, libro_id: int) -> EntidadStock | None:
+        """Devuelve el stock del libro o None."""
+
+    @abc.abstractmethod
+    def actualizar(self, stock: EntidadStock) -> EntidadStock:
+        """Reemplaza el stock existente del mismo libro."""
+
+    @abc.abstractmethod
+    def eliminar(self, libro_id: int) -> bool:
+        """Elimina el stock del libro; devuelve False si no existía."""
+
+
+class IRepositorioCotizacionDolar(abc.ABC):
+    """Contrato CRUD para cotizaciones con clave tipo_id y fecha."""
+
+    @abc.abstractmethod
+    def crear(
+        self, cotizacion: EntidadCotizacion
+    ) -> EntidadCotizacion:
+        """Persiste una cotización nueva."""
+
+    @abc.abstractmethod
+    def leer_por_tipo_y_fecha(
+        self, tipo_id: int, fecha: date
+    ) -> EntidadCotizacion | None:
+        """Devuelve la cotización de ese tipo y fecha o None."""
+
+    @abc.abstractmethod
+    def leer_historico_por_tipo(
+        self, tipo_id: int
+    ) -> list[EntidadCotizacion]:
+        """Devuelve todas las cotizaciones de un tipo."""
+
+    @abc.abstractmethod
+    def actualizar(
+        self, cotizacion: EntidadCotizacion
+    ) -> EntidadCotizacion:
+        """Reemplaza la cotización existente del mismo tipo y fecha."""
+
+    @abc.abstractmethod
+    def eliminar(self, tipo_id: int, fecha: date) -> bool:
+        """Elimina la cotización; devuelve False si no existía."""
 
 
 class SQLRepositorioBase(Generic[T]):
@@ -54,6 +135,7 @@ class SQLRepositorioBase(Generic[T]):
         self._convertir_valores = convertir_valores
         self._nombre_entidad = nombre_entidad
 
+    @auditar_operacion
     def crear(self, entidad: T) -> T:
         """Inserta la entidad y rechaza claves ya registradas."""
         valores = self._convertir_valores(entidad)
@@ -74,6 +156,7 @@ class SQLRepositorioBase(Generic[T]):
             ) from error
         return entidad
 
+    @auditar_operacion
     def leer_por_id(self, id: int) -> T | None:
         """Devuelve la entidad por su identificador simple."""
         if len(self._clave_primaria) != 1:
@@ -83,6 +166,7 @@ class SQLRepositorioBase(Generic[T]):
         resultado = self.leer_por_clave(id)
         return resultado
 
+    @auditar_operacion
     def leer_por_clave(self, *clave: int | date) -> T | None:
         """Busca una entidad por los valores de su clave primaria."""
         clave_primaria = self._normalizar_clave(clave)
@@ -94,6 +178,7 @@ class SQLRepositorioBase(Generic[T]):
                 else None
             )
 
+    @auditar_operacion
     def leer_todos(self) -> list[T]:
         """Devuelve las entidades ordenadas por su clave primaria."""
         columnas = [
@@ -109,6 +194,7 @@ class SQLRepositorioBase(Generic[T]):
                 for registro in registros
             ]
 
+    @auditar_operacion
     def actualizar(self, entidad: T) -> T:
         """Actualiza una entidad existente conservando su clave primaria."""
         valores = self._convertir_valores(entidad)
@@ -132,7 +218,16 @@ class SQLRepositorioBase(Generic[T]):
             ) from error
         return entidad
 
-    def eliminar(self, *clave: int | date) -> bool:
+    @auditar_operacion
+    def eliminar(self, id: int) -> bool:
+        """Elimina un registro identificado por un único id entero."""
+        if len(self._clave_primaria) != 1:
+            raise ValueError(
+                f"{self._nombre_entidad} requiere una clave compuesta."
+            )
+        return self._eliminar_por_clave(id)
+
+    def _eliminar_por_clave(self, *clave: int | date) -> bool:
         """Elimina la entidad o rechaza borrar registros relacionados."""
         clave_primaria = self._normalizar_clave(clave)
         try:
@@ -166,6 +261,14 @@ class SQLRepositorioBase(Generic[T]):
                 f"{len(self._clave_primaria)} valores de clave."
             )
         return clave[0] if len(clave) == 1 else clave
+
+
+class SQLRepositorioEntidad(
+    SQLRepositorioBase[TEntidad],
+    IRepositorio[TEntidad],
+    Generic[TEntidad],
+):
+    """Repositorio SQL que implementa el contrato CRUD de una entidad."""
 
 
 def _entidad_autor(registro: Autor) -> EntidadAutor:
@@ -286,6 +389,7 @@ def _entidad_cotizacion(registro: CotizacionDolar) -> EntidadCotizacion:
         _entidad_tipo_cotizacion(registro.tipo),
         registro.fecha,
         registro.valor,
+        registro.compra,
     )
 
 
@@ -295,19 +399,20 @@ def _valores_cotizacion(entidad: EntidadCotizacion) -> dict[str, Any]:
         "tipo_id": entidad.tipo.id,
         "fecha": entidad.fecha,
         "valor": entidad.valor,
+        "compra": entidad.compra,
     }
 
 
-def crear_repositorio_autor() -> SQLRepositorioBase[EntidadAutor]:
+def crear_repositorio_autor() -> SQLRepositorioEntidad[EntidadAutor]:
     """Construye el repositorio SQL de autores."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Autor, ("id",), _entidad_autor, _valores_autor, "Autor"
     )
 
 
-def crear_repositorio_editorial() -> SQLRepositorioBase[EntidadEditorial]:
+def crear_repositorio_editorial() -> SQLRepositorioEntidad[EntidadEditorial]:
     """Construye el repositorio SQL de editoriales."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Editorial,
         ("id",),
         _entidad_editorial,
@@ -316,25 +421,25 @@ def crear_repositorio_editorial() -> SQLRepositorioBase[EntidadEditorial]:
     )
 
 
-def crear_repositorio_genero() -> SQLRepositorioBase[EntidadGenero]:
+def crear_repositorio_genero() -> SQLRepositorioEntidad[EntidadGenero]:
     """Construye el repositorio SQL de géneros."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Genero, ("id",), _entidad_genero, _valores_genero, "Género"
     )
 
 
-def crear_repositorio_moneda() -> SQLRepositorioBase[EntidadMoneda]:
+def crear_repositorio_moneda() -> SQLRepositorioEntidad[EntidadMoneda]:
     """Construye el repositorio SQL de monedas."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Moneda, ("id",), _entidad_moneda, _valores_moneda, "Moneda"
     )
 
 
 def crear_repositorio_tipo_cotizacion() -> (
-    SQLRepositorioBase[EntidadTipoCotizacion]
+    SQLRepositorioEntidad[EntidadTipoCotizacion]
 ):
     """Construye el repositorio SQL de tipos de cotización."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         TipoCotizacion,
         ("id",),
         _entidad_tipo_cotizacion,
@@ -343,21 +448,24 @@ def crear_repositorio_tipo_cotizacion() -> (
     )
 
 
-def crear_repositorio_precio() -> SQLRepositorioBase[EntidadPrecio]:
+def crear_repositorio_precio() -> SQLRepositorioEntidad[EntidadPrecio]:
     """Construye el repositorio SQL de precios."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Precio, ("id",), _entidad_precio, _valores_precio, "Precio"
     )
 
 
-def crear_repositorio_libro() -> SQLRepositorioBase[EntidadLibro]:
+def crear_repositorio_libro() -> SQLRepositorioEntidad[EntidadLibro]:
     """Construye el repositorio SQL de libros."""
-    return SQLRepositorioBase(
+    return SQLRepositorioEntidad(
         Libro, ("id",), _entidad_libro, _valores_libro, "Libro"
     )
 
 
-class SQLRepositorioStock(SQLRepositorioBase[EntidadStock]):
+class SQLRepositorioStock(
+    SQLRepositorioBase[EntidadStock],
+    IRepositorioStock,
+):
     """Repositorio SQL de Stock, identificado por libro_id."""
 
     def __init__(self) -> None:
@@ -370,6 +478,7 @@ class SQLRepositorioStock(SQLRepositorioBase[EntidadStock]):
             "Stock",
         )
 
+    @auditar_operacion
     def leer_por_libro(self, libro_id: int) -> EntidadStock | None:
         """Devuelve el stock asociado al identificador del libro."""
         return self.leer_por_clave(libro_id)
@@ -380,7 +489,8 @@ class SQLRepositorioStock(SQLRepositorioBase[EntidadStock]):
 
 
 class SQLRepositorioCotizacion(
-    SQLRepositorioBase[EntidadCotizacion]
+    SQLRepositorioBase[EntidadCotizacion],
+    IRepositorioCotizacionDolar,
 ):
     """Repositorio SQL de cotizaciones con clave compuesta."""
 
@@ -394,10 +504,12 @@ class SQLRepositorioCotizacion(
             "Cotización",
         )
 
+    @auditar_operacion
     def leer_todos(self) -> list[EntidadCotizacion]:
         """Devuelve todas las cotizaciones ordenadas por tipo y fecha."""
         return super().leer_todos()
 
+    @auditar_operacion
     def leer_por_tipo_y_fecha(
         self,
         tipo_id: int,
@@ -406,6 +518,7 @@ class SQLRepositorioCotizacion(
         """Busca una cotización por tipo y fecha."""
         return self.leer_por_clave(tipo_id, fecha)
 
+    @auditar_operacion
     def leer_historico_por_tipo(
         self,
         tipo_id: int,
@@ -420,6 +533,7 @@ class SQLRepositorioCotizacion(
             registros = sesion.scalars(consulta).all()
             return [_entidad_cotizacion(registro) for registro in registros]
 
+    @auditar_operacion
     def guardar_o_actualizar_lote(
         self,
         cotizaciones: list[EntidadCotizacion],
@@ -435,6 +549,7 @@ class SQLRepositorioCotizacion(
                         sesion.add(CotizacionDolar(**valores))
                     else:
                         registro.valor = cotizacion.valor
+                        registro.compra = cotizacion.compra
                 sesion.flush()
         except IntegrityError as error:
             raise ValueError(
@@ -443,11 +558,43 @@ class SQLRepositorioCotizacion(
             ) from error
         return cotizaciones
 
+    @auditar_operacion
     def eliminar(self, tipo_id: int, fecha: date) -> bool:
         """Elimina la cotización del tipo y fecha indicados."""
-        return super().eliminar(tipo_id, fecha)
+        return self._eliminar_por_clave(tipo_id, fecha)
 
 
 def crear_repositorio_cotizacion() -> SQLRepositorioCotizacion:
     """Construye el repositorio SQL de cotizaciones."""
     return SQLRepositorioCotizacion()
+
+
+class SQLRepositorioAuditoria:
+    """Consulta eventos de auditoría en orden cronológico inverso."""
+
+    @auditar_operacion
+    def leer_recientes(self, limite: int = 20) -> list[dict[str, object]]:
+        """Devuelve hasta el número indicado de eventos recientes."""
+        if isinstance(limite, bool) or not isinstance(limite, int):
+            raise ValueError("El límite del historial debe ser un entero.")
+        if not 1 <= limite <= 500:
+            raise ValueError("El límite debe estar entre 1 y 500.")
+
+        tabla = Auditoria.__table__
+        if not isinstance(tabla, Table):
+            raise TypeError("El modelo de auditoría no define una tabla SQL.")
+        tabla.create(bind=get_engine(), checkfirst=True)
+        with get_db_session() as sesion:
+            registros = sesion.scalars(
+                select(Auditoria)
+                .order_by(Auditoria.fecha.desc(), Auditoria.id.desc())
+                .limit(limite)
+            ).all()
+            return [
+                {
+                    "accion": registro.accion,
+                    "fecha": registro.fecha,
+                    "detalles": registro.detalles,
+                }
+                for registro in registros
+            ]

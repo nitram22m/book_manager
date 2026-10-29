@@ -6,10 +6,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from book_manager.database.connection import get_db_session, get_engine
+from book_manager.services.auditoria import auditar_operacion
 from book_manager.models.models import (
     Autor,
     Base,
@@ -40,10 +43,12 @@ class _DefinicionMigracion:
 
 
 def _convertir_nombrada(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de entidad nombrada a valores ORM."""
     return {"id": int(fila["id"]), "nombre": fila["nombre"]}
 
 
 def _convertir_moneda(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de moneda a valores ORM."""
     return {
         "id": int(fila["id"]),
         "nombre": fila["nombre"],
@@ -52,6 +57,7 @@ def _convertir_moneda(fila: RegistroCsv) -> DatosModelo:
 
 
 def _convertir_precio(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de precio a valores ORM."""
     return {
         "id": int(fila["id"]),
         "valor": float(fila["valor"]),
@@ -60,6 +66,7 @@ def _convertir_precio(fila: RegistroCsv) -> DatosModelo:
 
 
 def _convertir_libro(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de libro a valores ORM."""
     return {
         "id": int(fila["id"]),
         "isbn": fila["isbn"],
@@ -72,6 +79,7 @@ def _convertir_libro(fila: RegistroCsv) -> DatosModelo:
 
 
 def _convertir_stock(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de stock a valores ORM."""
     return {
         "libro_id": int(fila["libro_id"]),
         "cantidad": int(fila["cantidad"]),
@@ -79,10 +87,12 @@ def _convertir_stock(fila: RegistroCsv) -> DatosModelo:
 
 
 def _convertir_cotizacion(fila: RegistroCsv) -> DatosModelo:
+    """Convierte una fila de cotización a valores ORM."""
     return {
         "tipo_id": int(fila["tipo_id"]),
         "fecha": date.fromisoformat(fila["fecha"]),
         "valor": float(fila["valor"]),
+        "compra": None,
     }
 
 
@@ -252,6 +262,22 @@ def _insertar_registros(
     sesion.flush()
 
 
+def _asegurar_columna_compra(engine: Engine) -> None:
+    """Agrega compra a instalaciones existentes sin modificar sus datos."""
+    columnas = {
+        columna["name"]
+        for columna in inspect(engine).get_columns("cotizaciones")
+    }
+    if "compra" in columnas:
+        return
+
+    with engine.begin() as conexion:
+        conexion.exec_driver_sql(
+            "ALTER TABLE cotizaciones ADD COLUMN compra FLOAT"
+        )
+
+
+@auditar_operacion
 def migrar_datos(carpeta_csvs: str, carpeta_sqls: str) -> None:
     """Migra los CSV del TP1 y genera archivos SQL idempotentes.
 
@@ -274,7 +300,9 @@ def migrar_datos(carpeta_csvs: str, carpeta_sqls: str) -> None:
             encoding="utf-8",
         )
 
-    Base.metadata.create_all(bind=get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(bind=engine)
+    _asegurar_columna_compra(engine)
     with get_db_session() as sesion:
         for definicion, registros in datos:
             _insertar_registros(sesion, definicion, registros)

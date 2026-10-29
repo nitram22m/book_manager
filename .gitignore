@@ -5,3 +5,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+/exports/
+/tests/
+src/book_manager/reportes/*
+!src/book_manager/reportes/.gitkeep
+!src/book_manager/reportes/__init__.py
