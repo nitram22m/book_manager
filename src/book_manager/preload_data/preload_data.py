@@ -1,6 +1,8 @@
 """Carga de registros de ejemplo para iniciar Book Manager."""
 
 import datetime
+from pathlib import Path
+from sqlalchemy.exc import SQLAlchemyError
 
 from book_manager.entities.entities import (
     Autor,
@@ -13,7 +15,91 @@ from book_manager.entities.entities import (
     Stock,
     TipoCotizacion,
 )
+from book_manager.database.connection import get_engine
+from sqlalchemy.engine import Engine
+from book_manager.services.auditoria import auditar_operacion
 from book_manager.services.services import ServicioLibreria
+
+ROOT_DIR = Path(__file__).resolve().parents[3]
+SQL_DIR = ROOT_DIR / "src" / "book_manager" / "migrations" / "sql"
+
+_ORDEN_ARCHIVOS_SQL = (
+    "autores.sql",
+    "editoriales.sql",
+    "generos.sql",
+    "monedas.sql",
+    "tipo_cotizacion.sql",
+    "precios.sql",
+    "libros.sql",
+    "stock.sql",
+    "cotizaciones.sql",
+)
+
+
+@auditar_operacion
+def precargar_datos_sql(
+    directorio_sql: Path = SQL_DIR,
+    engine: Engine | None = None,
+) -> int:
+    """Ejecuta los scripts SQL generados por la migración del Sprint 2.
+
+    Los archivos se ejecutan en orden de dependencias y cada sentencia forma
+    parte de una única transacción. Si un script falla, se revierten todos
+    los cambios realizados durante esta precarga.
+
+    Args:
+        directorio_sql: Carpeta que contiene los archivos .sql generados.
+        engine: Motor SQLAlchemy opcional, útil para pruebas controladas.
+
+    Returns:
+        Cantidad de sentencias SQL ejecutadas.
+    """
+    if not directorio_sql.is_dir():
+        raise FileNotFoundError(
+            f"No existe el directorio de scripts SQL: {directorio_sql}"
+        )
+
+    archivos_disponibles = list(directorio_sql.glob("*.sql"))
+    if not archivos_disponibles:
+        raise FileNotFoundError(
+            f"No se encontraron archivos .sql en {directorio_sql}."
+        )
+
+    orden = {
+        nombre: indice
+        for indice, nombre in enumerate(_ORDEN_ARCHIVOS_SQL)
+    }
+    archivos = sorted(
+        archivos_disponibles,
+        key=lambda ruta: (orden.get(ruta.name, len(orden)), ruta.name),
+    )
+    motor = engine or get_engine()
+    cantidad_sentencias = 0
+
+    with motor.begin() as conexion:
+        for ruta_sql in archivos:
+            contenido = ruta_sql.read_text(encoding="utf-8-sig")
+            for numero_linea, linea in enumerate(
+                contenido.splitlines(),
+                start=1,
+            ):
+                sentencia = linea.strip()
+                if not sentencia or sentencia.startswith("--"):
+                    continue
+                try:
+                    conexion.exec_driver_sql(sentencia)
+                except SQLAlchemyError as error:
+                    raise RuntimeError(
+                        f"Error al ejecutar {ruta_sql.name}, "
+                        f"línea {numero_linea}."
+                    ) from error
+                cantidad_sentencias += 1
+
+    print(
+        f"Precarga SQL completada: {cantidad_sentencias} sentencias "
+        f"ejecutadas desde {len(archivos)} archivos."
+    )
+    return cantidad_sentencias
 
 
 def inicializar_datos() -> None:
@@ -106,10 +192,16 @@ def inicializar_datos() -> None:
             editorial = repo_editoriales.leer_por_id(ed)
             genero = repo_generos.leer_por_id(gen)
             precio = repo_precios.leer_por_id(pre)
-            if all((autor, editorial, genero, precio)):
-                repo_libros.crear(
-                    Libro(i, isbn, tit, autor, editorial, genero, precio)
-                )
+            if (
+                autor is None
+                or editorial is None
+                or genero is None
+                or precio is None
+            ):
+                continue
+            repo_libros.crear(
+                Libro(i, isbn, tit, autor, editorial, genero, precio)
+            )
 
     if not repo_stock.leer_todos():
         cantidades = [50, 20, 100, 15, 10, 30, 5, 45, 60, 25]
@@ -150,4 +242,4 @@ def inicializar_datos() -> None:
 
 
 if __name__ == "__main__":
-    inicializar_datos()
+    precargar_datos_sql()
