@@ -2,9 +2,9 @@
 
 import csv
 import os
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from book_manager.entities.entities import (
     Autor,
@@ -18,9 +18,11 @@ from book_manager.entities.entities import (
     Stock,
     TipoCotizacion,
 )
-from book_manager.services.services import ServicioLibreria
+from book_manager.reportes import REPORTS_DIR
+from book_manager.services.auditoria import auditar_operacion
+from book_manager.services.services import AlertaPrecio, ServicioLibreria
 
-EXPORT_DIR: Path = Path(__file__).resolve().parents[3] / "exports"
+TEntidadDominio = TypeVar("TEntidadDominio", bound=Entidad)
 
 
 class MenuConsola:
@@ -114,7 +116,7 @@ class MenuConsola:
     def mostrar_menu_principal(self) -> None:
         """Muestra el menú principal y despacha la opción seleccionada."""
         while True:
-            print("\n=== BOOK MANAGER - SPRINT 2 ===")
+            print("\n=== BOOK MANAGER - SPRINT 3 ===")
             print("1. Gestionar entidades (CRUD)")
             print("2. Consultar precio de un libro en ARS")
             print("3. Consultar stock disponible")
@@ -124,7 +126,11 @@ class MenuConsola:
             print("7. Actualizar cotizaciones desde DolarApi")
             print("8. Consultar precios en ARS y USD")
             print("9. Exportar precios bimonetarios a CSV")
-            print("10. Salir")
+            print("10. Buscar título en Cúspide")
+            print("11. Ejecutar scraping del catálogo")
+            print("12. Generar reporte desde datos guardados")
+            print("13. Ver historial de auditoría")
+            print("14. Salir")
             opcion = input("Seleccione una opcion: ").strip()
 
             if opcion == "1":
@@ -146,6 +152,14 @@ class MenuConsola:
             elif opcion == "9":
                 self.exportar_precios_bimonetarios()
             elif opcion == "10":
+                self.buscar_titulo_cuspide()
+            elif opcion == "11":
+                self.ejecutar_scraping_catalogo()
+            elif opcion == "12":
+                self.generar_reporte_precios()
+            elif opcion == "13":
+                self.ver_historial_auditoria()
+            elif opcion == "14":
                 print("Saliendo del sistema.")
                 return
             else:
@@ -293,6 +307,7 @@ class MenuConsola:
         return self._construir_entidad(nombre, datos)
 
     def _valor_campo(self, entidad: Entidad, campo: str) -> Any:
+        """Obtiene el valor de un campo, resolviendo referencias por ID."""
         relaciones = {
             "autor_id": "autor",
             "editorial_id": "editorial",
@@ -309,27 +324,43 @@ class MenuConsola:
     def _construir_entidad(
         self, nombre: str, datos: dict[str, Any]
     ) -> Entidad:
+        """Construye la entidad de dominio a partir de datos de consola."""
         if nombre in {"Genero", "Editorial", "Autor", "TipoCotizacion"}:
             return self.modelos[nombre](id=datos["id"], nombre=datos["nombre"])
         if nombre == "Moneda":
             return Moneda(datos["id"], datos["nombre"], datos["simbolo"])
         if nombre == "Precio":
             moneda = self._entidad_por_id(
-                "repo_monedas", datos["moneda_id"], "Moneda"
+                "repo_monedas",
+                datos["moneda_id"],
+                Moneda,
+                "Moneda",
             )
             return Precio(datos["id"], datos["valor"], moneda)
         if nombre == "Libro":
             autor = self._entidad_por_id(
-                "repo_autores", datos["autor_id"], "Autor"
+                "repo_autores",
+                datos["autor_id"],
+                Autor,
+                "Autor",
             )
             editorial = self._entidad_por_id(
-                "repo_editoriales", datos["editorial_id"], "Editorial"
+                "repo_editoriales",
+                datos["editorial_id"],
+                Editorial,
+                "Editorial",
             )
             genero = self._entidad_por_id(
-                "repo_generos", datos["genero_id"], "Genero"
+                "repo_generos",
+                datos["genero_id"],
+                Genero,
+                "Genero",
             )
             precio = self._entidad_por_id(
-                "repo_precios", datos["precio_id"], "Precio"
+                "repo_precios",
+                datos["precio_id"],
+                Precio,
+                "Precio",
             )
             return Libro(
                 datos["id"], datos["isbn"], datos["titulo"],
@@ -337,22 +368,37 @@ class MenuConsola:
             )
         if nombre == "Stock":
             libro = self._entidad_por_id(
-                "repo_libros", datos["libro_id"], "Libro"
+                "repo_libros",
+                datos["libro_id"],
+                Libro,
+                "Libro",
             )
             return Stock(libro, datos["cantidad"])
         if nombre == "CotizacionDolar":
             tipo = self._entidad_por_id(
-                "repo_tipo_cot", datos["tipo_id"], "TipoCotizacion"
+                "repo_tipo_cot",
+                datos["tipo_id"],
+                TipoCotizacion,
+                "TipoCotizacion",
             )
             return CotizacionDolar(tipo, datos["fecha"], datos["valor"])
         raise ValueError(f"Entidad no soportada: {nombre}")
 
     def _entidad_por_id(
-        self, nombre_repo: str, id: int, nombre: str
-    ) -> Entidad:
+        self,
+        nombre_repo: str,
+        id: int,
+        clase: type[TEntidadDominio],
+        nombre: str,
+    ) -> TEntidadDominio:
+        """Busca y valida una entidad relacionada por su identificador."""
         entidad = getattr(self.servicio, nombre_repo).leer_por_id(id)
         if entidad is None:
             raise ValueError(f"{nombre} con ID {id} no existe.")
+        if not isinstance(entidad, clase):
+            raise TypeError(
+                f"El repositorio {nombre_repo} devolvió un tipo inválido."
+            )
         return entidad
 
     def mostrar_opciones_relacionadas(self, nombre_campo: str) -> None:
@@ -529,43 +575,266 @@ class MenuConsola:
 
         print("Cotizaciones actualizadas en la base de datos:")
         for cotizacion in cotizaciones:
+            compra = (
+                f"${cotizacion.compra:.2f}"
+                if cotizacion.compra is not None
+                else "N/D"
+            )
             print(
                 f"{cotizacion.tipo.nombre}: "
-                f"${cotizacion.valor:.2f} ARS "
+                f"compra={compra} ARS, "
+                f"venta=${cotizacion.valor:.2f} ARS "
                 f"({cotizacion.fecha.isoformat()})"
             )
 
+    def buscar_titulo_cuspide(self) -> None:
+        """Busca un título, compara precios y exporta sus reportes."""
+        titulo = input("Ingrese el título a buscar en Cúspide: ").strip()
+        if not titulo:
+            print("El título de búsqueda no puede quedar vacío.")
+            return
+        umbral = self._solicitar_umbral()
+        if umbral is None:
+            return
+        try:
+            resultados, alertas, ruta_csv, ruta_excel = (
+                self.servicio.buscar_libros_cuspide(
+                    titulo,
+                    umbral,
+                )
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            print(f"No se pudo completar la búsqueda: {error}")
+            return
+
+        if not resultados:
+            print("Cúspide no devolvió resultados para esa búsqueda.")
+        else:
+            for item, libro_local, stock_local in resultados:
+                self._mostrar_resultado_cuspide(
+                    item,
+                    libro_local,
+                    stock_local,
+                )
+
+        self._mostrar_alertas_precios(alertas, umbral)
+        print(f"Reporte CSV generado en: {ruta_csv}")
+        print(f"Reporte Excel generado en: {ruta_excel}")
+
+    @staticmethod
+    def _mostrar_resultado_cuspide(
+        item: dict[str, object],
+        libro_local: Libro | None,
+        stock_local: int | None,
+    ) -> None:
+        """Imprime la publicación y los datos del libro local asociado."""
+        nombre = item.get("titulo", "Sin título")
+        precio = item.get("precio")
+        moneda = item.get("moneda", "")
+        stock_cuspide = item.get("disponibilidad_stock", 0)
+        if isinstance(precio, (int, float)):
+            precio_texto = f"{precio:.2f} {moneda}"
+        else:
+            precio_texto = "No disponible"
+        print(
+            f"\n{nombre} | {precio_texto} | "
+            f"stock Cúspide={stock_cuspide}"
+        )
+        imagen = item.get("url_imagen", "")
+        if isinstance(imagen, str) and imagen:
+            print(f"Imagen: {imagen}")
+        descripcion = item.get("descripcion", "")
+        if isinstance(descripcion, str) and descripcion:
+            print(f"Descripción: {descripcion}")
+        formas_pago = item.get("formas_pago", [])
+        if isinstance(formas_pago, list) and formas_pago:
+            print("Formas de pago:")
+            for forma in formas_pago:
+                if not isinstance(forma, dict):
+                    continue
+                detalle = forma.get("descripcion", "")
+                precio_pago = forma.get("precio")
+                moneda_pago = forma.get("moneda", "")
+                if isinstance(precio_pago, (int, float)):
+                    print(
+                        f"  {detalle} | "
+                        f"{precio_pago:.2f} {moneda_pago}"
+                    )
+                else:
+                    print(f"  {detalle} | precio no informado")
+        if libro_local is None:
+            print(
+                "No se encontró un título coincidente "
+                "en el catálogo local."
+            )
+        else:
+            print(
+                f"Catálogo local: ID={libro_local.id}, "
+                f"stock propio={stock_local}"
+            )
+
+    def ejecutar_scraping_catalogo(self) -> None:
+        """Scrapea el catálogo, compara precios y exporta un reporte CSV."""
+        umbral = self._solicitar_umbral()
+        if umbral is None:
+            return
+        try:
+            alertas, ruta_csv, ruta_excel = (
+                self.servicio.ejecutar_scraping_catalogo(umbral)
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            print(f"No se pudo comparar los precios: {error}")
+            return
+
+        if not alertas:
+            print(
+                "Scraping completado. No se encontraron diferencias "
+                "superiores al umbral. "
+                f"Reportes: {ruta_csv} y {ruta_excel}"
+            )
+            return
+
+        print(f"Scraping completado. Alertas encontradas: {len(alertas)}.")
+        self._mostrar_alertas_precios(alertas, umbral)
+        print(f"Reporte CSV exportado en: {ruta_csv}")
+        print(f"Reporte Excel exportado en: {ruta_excel}")
+
+    def alertar_diferencias_precios(self) -> None:
+        """Mantiene compatibilidad con el nombre anterior de la acción."""
+        self.ejecutar_scraping_catalogo()
+
+    def generar_reporte_precios(self) -> None:
+        """Genera reportes desde las observaciones guardadas, sin scrapear."""
+        umbral = self._solicitar_umbral()
+        if umbral is None:
+            return
+        try:
+            alertas, ruta_csv, ruta_excel = (
+                self.servicio.generar_reporte_precios_cuspide(umbral)
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            print(f"No se pudo generar el reporte: {error}")
+            return
+
+        if not alertas:
+            print(
+                "No hay observaciones guardadas que superen el umbral. "
+                f"Reportes generados: {ruta_csv} y {ruta_excel}"
+            )
+            return
+
+        print(
+            "Alertas generadas desde observaciones guardadas: "
+            f"{len(alertas)}."
+        )
+        self._mostrar_alertas_precios(alertas, umbral)
+        print(f"Reporte CSV exportado en: {ruta_csv}")
+        print(f"Reporte Excel exportado en: {ruta_excel}")
+
+    def ver_historial_auditoria(self, limite: int = 20) -> None:
+        """Muestra los eventos más recientes registrados en auditoría."""
+        try:
+            eventos = self.servicio.leer_historial_auditoria(limite)
+        except (RuntimeError, ValueError) as error:
+            print(f"No se pudo consultar la auditoría: {error}")
+            return
+
+        if not eventos:
+            print("Todavía no hay operaciones auditadas.")
+            return
+        print(f"\nHistorial de auditoría (últimos {len(eventos)} eventos):")
+        for evento in eventos:
+            fecha = evento.get("fecha")
+            fecha_texto = (
+                fecha.isoformat()
+                if isinstance(fecha, datetime)
+                else str(fecha)
+            )
+            print(
+                f"{fecha_texto} | {evento.get('accion', '')} | "
+                f"{evento.get('detalles', '')}"
+            )
+
+    @staticmethod
+    def _solicitar_umbral() -> float | None:
+        """Lee el umbral antes de iniciar cualquier scraping de precios."""
+        entrada = input(
+            "Ingrese el umbral de diferencia de precio (>= 0): "
+        ).strip()
+        try:
+            return float(entrada)
+        except ValueError:
+            print("El umbral debe ser un número válido.")
+            return None
+
+    @staticmethod
+    def _mostrar_alertas_precios(
+        alertas: list[AlertaPrecio],
+        umbral: float,
+    ) -> None:
+        """Muestra en consola las alertas producidas por la comparación."""
+        if not alertas:
+            print("No se encontraron diferencias superiores al umbral.")
+            return
+        print(f"\nAlertas de precios (umbral: {umbral:.2f}):")
+        for alerta in alertas:
+            print(
+                f"{alerta['titulo']}: local="
+                f"{alerta['precio_local']:.2f} {alerta['moneda']}, "
+                f"Cúspide={alerta['precio_cuspide']:.2f} "
+                f"{alerta['moneda']}, diferencia="
+                f"{alerta['diferencia']:.2f} {alerta['moneda']}"
+            )
+
     def mostrar_precios_bimonetarios(self) -> None:
-        """Muestra los precios del catálogo en ARS y su equivalente en USD."""
+        """Muestra los precios en la moneda destino seleccionada."""
         if not self.servicio.repo_libros.leer_todos():
             print("No hay libros registrados.")
             return
 
+        moneda_destino = self._leer_moneda_destino()
+        if moneda_destino is None:
+            return
         tipo_id = self._leer_tipo_cotizacion()
         if tipo_id is None:
             return
 
         try:
-            precios = self.servicio.obtener_precios_bimonetarios(tipo_id)
+            precios, cotizacion = (
+                self.servicio.obtener_precios_bimonetarios(
+                    tipo_id,
+                    moneda_destino,
+                )
+            )
         except ValueError as error:
             print(f"No se pudo calcular la lista de precios: {error}")
             return
 
-        print("\nPrecios del catálogo en ARS y USD:")
-        print(
-            "ID | ISBN | Título | Precio original | Precio ARS | Precio USD"
-        )
-        for libro, precio_ars, precio_usd in precios:
+        print(f"\nPrecios del catálogo en {moneda_destino}:")
+        if cotizacion is None:
+            print("No se aplicó una conversión cambiaria.")
+        else:
+            print(
+                f"Cotización aplicada: {cotizacion.tipo.nombre} | "
+                f"venta=${cotizacion.valor:.2f} ARS/USD | "
+                f"fecha={cotizacion.fecha.isoformat()}"
+            )
+        print("ID | ISBN | Título | Precio original | Precio destino")
+        for libro, precio_destino in precios:
             precio_original = libro.precio
             moneda = precio_original.moneda
-            ars = f"${precio_ars:.2f}" if precio_ars is not None else "N/D"
-            usd = f"U$S {precio_usd:.2f}" if precio_usd is not None else "N/D"
+            destino = (
+                f"{precio_destino:.2f} {moneda_destino}"
+                if precio_destino is not None
+                else "N/D"
+            )
             print(
                 f"{libro.id} | {libro.isbn} | {libro.titulo} | "
                 f"{moneda.simbolo} {precio_original.valor:.2f} "
-                f"{moneda.nombre} | {ars} | {usd}"
+                f"{moneda.nombre} | {destino}"
             )
 
+    @auditar_operacion
     def exportar_precios_bimonetarios(
         self,
         tipo_dolar_id: int | None = None,
@@ -590,7 +859,7 @@ class MenuConsola:
                 tipo_dolar_id
             )
             destino = ruta_salida or (
-                EXPORT_DIR / "precios_bimonetarios.csv"
+                REPORTS_DIR / "precios_bimonetarios.csv"
             )
             destino.parent.mkdir(parents=True, exist_ok=True)
             with destino.open(
@@ -652,6 +921,19 @@ class MenuConsola:
         except ValueError:
             print("Ingrese un ID numerico valido.")
             return None
+
+    def _leer_moneda_destino(self) -> str | None:
+        """Solicita si los precios deben expresarse en ARS o USD."""
+        print("Moneda destino:")
+        print("1. ARS")
+        print("2. USD")
+        opcion = input("Seleccione la moneda destino: ").strip()
+        monedas = {"1": "ARS", "2": "USD"}
+        moneda = monedas.get(opcion)
+        if moneda is None:
+            print("Seleccione una opción válida (1 o 2).")
+            return None
+        return moneda
 
     def consultar_historico_cotizaciones(self) -> None:
         """Solicita un tipo de cotización y muestra su historial ordenado."""
